@@ -1,5 +1,8 @@
 {
   "id": "wechat-access",
+  "name": "WeChat Access",
+  "description": "微信通路插件 — 扫码登录 + AGP WebSocket 双向通信",
+  "version": "1.0.0",
   "channels": ["wechat-access"],
   "configSchema": {
     "type": "object",
@@ -10,11 +13,11 @@
       },
       "token": {
         "type": "string",
-        "description": "WebSocket 连接 token（手动配置时使用）"
+        "description": "WebSocket 连接 token（手动配置时使用，留空走扫码登录）"
       },
       "wsUrl": {
         "type": "string",
-        "description": "WebSocket 网关地址"
+        "description": "WebSocket 网关地址（留空使用环境默认值）"
       },
       "bypassInvite": {
         "type": "boolean",
@@ -31,7 +34,8 @@
       },
       "accounts": {
         "type": "object",
-        "description": "多账号配置"
+        "description": "多账号配置",
+        "additionalProperties": true
       }
     }
   }
