@@ -3,7 +3,7 @@ import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 import { WechatAccessWebSocketClient, handlePrompt, handleCancel } from "./websocket/index.js";
 // import { handleSimpleWecomWebhook } from "./http/webhook.js";
 import { setWecomRuntime } from "./common/runtime.js";
-import { performLogin, loadState, getDeviceGuid, getEnvironment } from "./auth/index.js";
+import { performLogin, loadState, clearState, getDeviceGuid, getEnvironment } from "./auth/index.js";
 
 // 类型定义
 type NormalizedChatType = "direct" | "group" | "channel";
@@ -228,10 +228,10 @@ const index = {
 
     // 3. 注册 /wechat-login 命令（手动触发扫码登录）
     api.registerCommand?.({
-      command: "wechat-login",
+      name: "wechat-login",
       description: "手动执行微信扫码登录，获取 channel token",
-      handler: async ({ cfg, reply }) => {
-        const channelCfg = cfg?.channels?.["wechat-access-unqclawed"];
+      handler: async ({ config }) => {
+        const channelCfg = config?.channels?.["wechat-access-unqclawed"];
         const bypassInvite = channelCfg?.bypassInvite === true;
         const authStatePath = channelCfg?.authStatePath
           ? String(channelCfg.authStatePath)
@@ -244,31 +244,30 @@ const index = {
         const guid = getDeviceGuid();
 
         try {
-          reply("正在启动微信扫码登录，请查看终端...");
           const credentials = await performLogin({
             guid,
             env,
             bypassInvite,
             authStatePath,
           });
-          reply(`登录成功! token: ${credentials.channelToken.substring(0, 6)}... (已保存，重启 Gateway 生效)`);
+          return { text: `登录成功! token: ${credentials.channelToken.substring(0, 6)}... (已保存，重启 Gateway 生效)` };
         } catch (err) {
-          reply(`登录失败: ${err instanceof Error ? err.message : String(err)}`);
+          return { text: `登录失败: ${err instanceof Error ? err.message : String(err)}`, isError: true };
         }
       },
     });
 
     // 4. 注册 /wechat-logout 命令（清除已保存的登录态）
     api.registerCommand?.({
-      command: "wechat-logout",
+      name: "wechat-logout",
       description: "清除已保存的微信登录态",
-      handler: async ({ cfg, reply }) => {
-        const channelCfg = cfg?.channels?.["wechat-access-unqclawed"];
+      handler: async ({ config }) => {
+        const channelCfg = config?.channels?.["wechat-access-unqclawed"];
         const authStatePath = channelCfg?.authStatePath
           ? String(channelCfg.authStatePath)
           : undefined;
         clearState(authStatePath);
-        reply("已清除登录态，下次启动将重新扫码登录。");
+        return { text: "已清除登录态，下次启动将重新扫码登录。" };
       },
     });
 
