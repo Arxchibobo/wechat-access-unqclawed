@@ -181,6 +181,10 @@ const tencentAccessPlugin = {
         const channelToken = (loginData.openclaw_channel_token as string) || "";
         const userInfo = (loginData.user_info as Record<string, unknown>) || {};
 
+        // 更新 loginKey（服务端可能返回新值，后续 API 调用需要）
+        const loginKey = userInfo.loginKey as string | undefined;
+        if (loginKey) api.loginKey = loginKey;
+
         // 保存登录态
         const persistedState: PersistedAuthState = {
           jwtToken,
@@ -425,6 +429,10 @@ const tencentAccessPlugin = {
           const jwtToken = (loginData.token as string) || "";
           const channelToken = (loginData.openclaw_channel_token as string) || "";
           const userInfo = (loginData.user_info as Record<string, unknown>) || {};
+
+          // 更新 loginKey（服务端可能返回新值，后续 API 调用需要）
+          const loginKey = userInfo.loginKey as string | undefined;
+          if (loginKey) api.loginKey = loginKey;
 
           // 保存登录态
           const persistedState: PersistedAuthState = {
