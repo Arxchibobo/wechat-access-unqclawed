@@ -61,6 +61,9 @@ const tencentAccessPlugin = {
     configPrefixes: ["channels.wechat-access-unqclawed.token", "channels.wechat-access-unqclawed.wsUrl"],
   },
 
+  // 声明支持的 gateway 方法（框架通过此字段找到 login provider）
+  gatewayMethods: ["web.login.start", "web.login.wait"],
+
   // 配置适配器（必需）
   config: {
     listAccountIds: (cfg: any) => {
