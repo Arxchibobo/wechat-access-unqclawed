@@ -1,50 +1,65 @@
 # wechat-access-unqclawed
 
-OpenClaw 微信通路插件 — 通过 WeChat OAuth 扫码登录获取 token，连接 AGP WebSocket 网关收发消息。
+An [OpenClaw](https://openclaw.ai) channel plugin that connects WeChat (WeCom) to your AI agents via QR code login, persistent token management, and real-time AGP WebSocket messaging.
 
-## 安装
+## Overview
+
+`wechat-access-unqclawed` bridges WeChat enterprise messaging and OpenClaw's agent framework. After authenticating with a WeChat QR code scan, the plugin maintains a persistent WebSocket connection using the AGP (Agent Gateway Protocol) to route incoming WeChat messages to your OpenClaw agents and stream responses back in real time. An HTTP webhook fallback is also included.
+
+## Features
+
+- **QR code login** — displays a scannable QR code in the terminal or provides a browser link for WeChat OAuth2 authentication
+- **Token persistence** — auth state is saved to `~/.openclaw/wechat-access-auth.json` and automatically loaded on restart
+- **Automatic token refresh** — JWT tokens are refreshed transparently; no manual re-login required
+- **AGP WebSocket gateway** — full-duplex, streaming communication with auto-reconnect and heartbeat
+- **HTTP webhook fallback** — handles encrypted and plaintext WeChat callback messages via HTTP
+- **Tool call support** — streams tool invocations and status updates back to WeChat users
+- **Multi-environment** — switchable between `production` and `test` gateway endpoints
+- **CLI & chat commands** — `openclaw wechat login/logout` and in-chat `/wechat-login` / `/wechat-logout`
+
+## Requirements
+
+- **OpenClaw** >= 2026.1.26
+- **Node.js** with ES2022 support
+
+## Installation
 
 ```bash
 openclaw plugins install @henryxiaoyang/wechat-access-unqclawed
-```
-
-启用渠道：
-
-```bash
 openclaw config set channels.wechat-access-unqclawed.enabled true
 ```
 
-## 首次登录
+## First-Time Login
+
+Run the login command:
 
 ```bash
 openclaw channels login --channel wechat-access-unqclawed
 ```
 
-终端会显示微信二维码（或浏览器链接），用微信扫码并确认后，浏览器会跳转到新页面。
+The terminal will display a WeChat QR code (or a browser link). Scan it with WeChat and confirm. After confirmation, WeChat redirects your browser to a new URL.
 
-在**另一个终端窗口**中，将浏览器地址栏的完整 URL 或 `code` 参数值写入临时文件：
+In a **second terminal window**, write the full redirect URL (or just the `code` parameter) to the temporary auth file:
 
 ```bash
-echo "粘贴的URL或code" > ~/.openclaw/wechat-auth-code.tmp
+echo "PASTE_URL_OR_CODE_HERE" > ~/.openclaw/wechat-auth-code.tmp
 ```
 
-原窗口会自动检测并完成登录，token 自动保存。然后重启 Gateway：
+The login flow detects this file automatically, completes authentication, and saves the token. Then restart the gateway:
 
 ```bash
 openclaw gateway restart
 ```
 
-## 功能
+## Token Resolution Order
 
-- 微信扫码登录（终端二维码 + 浏览器链接）
-- Token 自动持久化，重启免登录
-- AGP 协议 WebSocket 双向通信（流式文本、工具调用）
-- 邀请码验证（可配置跳过）
-- 支持生产/测试环境切换
+1. `channels.wechat-access-unqclawed.token` in config — used directly if set
+2. Saved state at `~/.openclaw/wechat-access-auth.json` — loaded automatically
+3. Neither present — run `openclaw channels login --channel wechat-access-unqclawed`
 
-## 配置
+## Configuration
 
-在 OpenClaw 配置文件的 `channels.wechat-access-unqclawed` 下：
+Add the following block to your OpenClaw config file under `channels.wechat-access-unqclawed`:
 
 ```json
 {
@@ -54,54 +69,59 @@ openclaw gateway restart
       "token": "",
       "wsUrl": "",
       "bypassInvite": false,
-      "environment": "production"
+      "environment": "production",
+      "authStatePath": ""
     }
   }
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `enabled` | boolean | 启用渠道（必须设为 `true`） |
-| `token` | string | 手动指定 channel token（留空则走扫码登录） |
-| `wsUrl` | string | WebSocket 网关地址（留空使用环境默认值） |
-| `bypassInvite` | boolean | 跳过邀请码验证 |
-| `environment` | string | `production` 或 `test` |
-| `authStatePath` | string | 自定义 token 持久化路径 |
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | `boolean` | Enable the channel (must be `true`) |
+| `token` | `string` | Manually supply a channel token; skips QR login when set |
+| `wsUrl` | `string` | Override the WebSocket gateway URL; uses the environment default if empty |
+| `bypassInvite` | `boolean` | Skip invite-code verification |
+| `environment` | `string` | `"production"` (default) or `"test"` |
+| `authStatePath` | `string` | Custom path for token persistence file |
 
-## Token 获取策略
+## Protocol
 
-1. 读取配置中的 `token` — 如果有，直接使用
-2. 读取本地保存的登录态（`~/.openclaw/wechat-access-auth.json`）
-3. 以上都没有 — 运行 `openclaw channels login --channel wechat-access-unqclawed` 手动登录
+The plugin communicates over the **AGP (Agent Gateway Protocol)** — a JSON message protocol carried over WebSocket text frames. See [`websocket.md`](./websocket.md) for the full specification.
 
-## 项目结构
+## Project Structure
 
 ```
-index.ts                 # 插件入口，注册渠道、CLI、启停 WebSocket
+index.ts                 # Plugin entry point — registers channel, CLI commands, WebSocket lifecycle
 auth/
-  types.ts               # 认证相关类型
-  environments.ts        # 生产/测试环境配置
-  device-guid.ts         # 设备 GUID 生成（随机，持久化）
-  qclaw-api.ts           # QClaw JPRX 网关 API 客户端
-  state-store.ts         # Token 持久化
-  wechat-login.ts        # 扫码登录流程编排（交互式）
-  wechat-qr-poll.ts      # QR 码生成与轮询
+  types.ts               # Auth type definitions
+  environments.ts        # Production / test endpoint configs
+  device-guid.ts         # Device GUID generation and persistence
+  qclaw-api.ts           # QClaw JPRX gateway API client
+  state-store.ts         # Token persistence (0o600 permissions)
+  wechat-login.ts        # Interactive QR login orchestration
+  wechat-qr-poll.ts      # QR code generation and polling
 websocket/
-  types.ts               # AGP 协议类型
-  websocket-client.ts    # WebSocket 客户端（连接、心跳、重连）
-  message-handler.ts     # 消息处理（调用 Agent）
-  message-adapter.ts     # AGP <-> OpenClaw 消息适配
+  types.ts               # AGP protocol types
+  websocket-client.ts    # WebSocket client (connect, heartbeat, reconnect)
+  message-handler.ts     # Message dispatch to OpenClaw agents
+  message-adapter.ts     # AGP ↔ OpenClaw message format conversion
 common/
-  runtime.ts             # OpenClaw 运行时单例
-  agent-events.ts        # Agent 事件订阅
-  message-context.ts     # 消息上下文构建
-http/                    # HTTP webhook 通道（备用）
+  runtime.ts             # OpenClaw runtime singleton
+  agent-events.ts        # Agent event subscription
+  message-context.ts     # Message context builder
+http/                    # HTTP webhook channel (fallback)
 ```
 
-## 协议
+## Dependencies
 
-AGP (Agent Gateway Protocol) — 基于 WebSocket Text 帧的 JSON 消息协议，详见 `websocket.md`。
+| Package | Purpose |
+|---------|---------|
+| `ws` | WebSocket client |
+| `undici` | HTTP client |
+| `qrcode-terminal` | QR code rendering in terminal |
+| `fast-xml-parser` | XML parsing for legacy services |
+| `zod` | Schema validation |
 
 ## License
 
